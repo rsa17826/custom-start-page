@@ -495,7 +495,6 @@
     if (write) {
       options.mode = "readwrite"
     }
-    debugger
     if (
       (await fileHandle.queryPermission(options)) === "granted" ||
       (await fileHandle.requestPermission(options)) === "granted"
