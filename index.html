@@ -1,0 +1,545 @@
+<script src="./js globals/live.js"></script>
+<link rel="stylesheet" href="style.css" />
+
+<script src="./js globals/libloader.user.js"></script>
+<script src="./js globals/allfuncs.user.js"></script>
+<script src="./js globals/better logs.user.js"></script>
+<script src="./js globals/indexeddb ls.user.js"></script>
+
+<script src="./js globals/progress bar.user.js"></script>
+<script src="./js globals/file opener.user.js"></script>
+
+<div class="floatingui draggable hide">
+  <div class="frameeditor">
+    <div class="buttonsbar flex-row">
+      <button id="newframe">add new frame</button>
+    </div>
+    <div class="framebuttons hide">
+      <div class="flex-row">
+        <span>x: </span
+        ><input
+          class="half-w"
+          step="10"
+          min="0"
+          type="number"
+          id="x"
+          placeholder="x pos"
+        />
+        <span>y: </span
+        ><input
+          class="half-w"
+          step="10"
+          min="0"
+          type="number"
+          id="y"
+          placeholder="y pos"
+        />
+      </div>
+      <div class="flex-row">
+        <span>w: </span
+        ><input
+          class="half-w"
+          type="number"
+          step="10"
+          min="0"
+          id="w"
+          placeholder="width"
+        />
+        <span>h: </span
+        ><input
+          class="half-w"
+          type="number"
+          step="10"
+          min="0"
+          id="h"
+          placeholder="height"
+        />
+      </div>
+      <div class="flex-row">
+        <span>url: </span
+        ><input id="url" placeholder="url" class="half-w" />
+      </div>
+      <div class="flex-row">
+        <button id="loadLocalFile">load local file</button>
+      </div>
+      <div class="flex-row">
+        <button id="loadLocalFolder">load local folder</button>
+      </div>
+      <div class="flex-row">
+        <button class="half-w" id="save">save</button>
+        <button class="half-w" id="deleteframe">delete frame</button>
+        <button class="half-w" id="close">close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="dragarea" class="hide"></div>
+<script>
+  const key = {
+    alt: 0,
+  }
+  const a = loadlib("allfuncs")
+  const ffopen = loadlib("file opener")
+  a.listen(window, {
+    keydown(e) {
+      switch (e.key.toLowerCase()) {
+        case "alt":
+          key.alt = 1
+          e.stopImmediatePropagation()
+          e.stopPropagation()
+          e.preventDefault()
+          break
+        case "s":
+          if (e.ctrlKey) {
+            e.stopImmediatePropagation()
+            e.stopPropagation()
+            e.preventDefault()
+            saveData()
+            break
+          }
+      }
+    },
+    keyup(e) {
+      switch (e.key.toLowerCase()) {
+        case "alt":
+          key.alt = 0
+          e.stopImmediatePropagation()
+          e.stopPropagation()
+          e.preventDefault()
+          break
+      }
+    },
+  })
+  var frameClickListeners = []
+  var inp = {
+    x: a.qs(".frameeditor > .framebuttons > div >#x"),
+    y: a.qs(".frameeditor > .framebuttons > div >#y"),
+    w: a.qs(".frameeditor > .framebuttons > div >#w"),
+    h: a.qs(".frameeditor > .framebuttons > div >#h"),
+    close: a.qs(".frameeditor > .framebuttons > div >#close"),
+    url: a.qs(".frameeditor > .framebuttons > div >#url"),
+  }
+  function saveData() {
+    idbls.saveData = ls
+  }
+  function clearData() {
+    delete idbls.saveData
+  }
+  ;(async () => {
+    const idbls = await loadlib("indexeddb ls")("framer")
+    window.idbls = idbls
+
+    function deepCopy(obj) {
+      if (obj === null || typeof obj !== "object") {
+        return obj // Return the value if obj is not an object
+      }
+      if (obj instanceof FileSystemHandle) {
+        return obj // Return the handle itself
+      }
+      if (Array.isArray(obj)) {
+        return obj.map((item) => deepCopy(item)) // Handle arrays
+      }
+
+      const copy = {}
+      for (const key in obj) {
+        if (obj.hasOwnProperty(key)) {
+          copy[key] = deepCopy(obj[key]) // Recursively copy properties
+        }
+      }
+      return copy
+    }
+    idbls.saveData ??= {}
+    window.ls = deepCopy(idbls.saveData)
+    ls.frames ??= []
+    ls.frameCreatorPos ??= {
+      x: 35,
+      y: 5,
+    }
+    clampElemToRealScreen(
+      a.qs(".floatingui"),
+      ls.frameCreatorPos.x,
+      ls.frameCreatorPos.y
+    )
+    a.qs(".floatingui").classList.remove("hide")
+    startDraggables()
+    for (var id in ls.frames) {
+      delete ls.frames[id].elem
+      createFrameElement(id)
+      updateFrameElement(id)
+    }
+    updateFrameClickListeners()
+  })()
+
+  function clampElemToRealScreen(elem, x, y) {
+    var screenWidth = screen.width
+    var screenHeight = screen.height
+    var width = a.rect(elem).w
+    var height = a.rect(elem).h
+    elem.style.left =
+      Math.min(Math.max(0, x), screenWidth - width) + "px"
+    elem.style.top =
+      Math.min(Math.max(0, y), screenHeight - height) + "px"
+  }
+  function clampElemToHTMLScreen(elem, x, y) {
+    var screenWidth = a.rect("html").w
+    var screenHeight = a.rect("html").h
+    var width = a.rect(elem).w
+    var height = a.rect(elem).h
+    elem.style.left =
+      Math.min(Math.max(0, x), screenWidth - width) + "px"
+    elem.style.top =
+      Math.min(Math.max(0, y), screenHeight - height) + "px"
+  }
+  var activeFrame = null
+  a.listen(a.qs("#newframe"), "click", (e) => {
+    var frame = (activeFrame = newframe())
+    showedit(frame)
+    loadFrameDataFromInputs()
+    updateFrameClickListeners()
+  })
+  a.listen(a.qs("#save"), "click", (e) => {
+    saveData()
+  })
+  a.listen(a.qs("#deleteframe"), "click", (e) => {
+    activeFrame.elem.remove()
+    ls.frames.splice(activeFrame.id, 1)
+    activeFrame = null
+    for (var id in ls.frames) {
+      ls.frames[id].id = id
+    }
+  })
+
+  function updateFrameClickListeners() {
+    for (var listener of frameClickListeners) {
+      a.unlisten(listener)
+    }
+    frameClickListeners = []
+    frameClickListeners.push(
+      a.listen(a.qsa(".frame"), {
+        click(e) {
+          activeFrame = ls.frames[e.target.frameId]
+          log(e.target.frameId)
+          showedit(activeFrame)
+        },
+        mousedown(e) {
+          activeFrame = ls.frames[e.target.frameId]
+          log(e.target.frameId)
+          showedit(activeFrame)
+          var elem = activeFrame.elem
+          elem.classList.add("resizing")
+          elem.resizeDir = {
+            x: 0,
+            y: 0,
+          }
+          var rect = a.rect(elem)
+          var xoff = e.clientX - rect.x
+          var yoff = e.clientY - rect.y
+          if (xoff < 10) elem.resizeDir.x = -1
+          if (yoff < 10) elem.resizeDir.y = -1
+          if (rect.w - xoff < 10) elem.resizeDir.x = +1
+          if (rect.h - yoff < 10) elem.resizeDir.y = +1
+          elem.clickStart = { x: e.clientX, y: e.clientY }
+          elem.preResize = {
+            x: Math.round(activeFrame.x / 10) * 10,
+            y: Math.round(activeFrame.y / 10) * 10,
+            w: Math.round(activeFrame.w / 10) * 10,
+            h: Math.round(activeFrame.h / 10) * 10,
+          }
+          a.qs("#dragarea").classList.remove("hide")
+        },
+      })
+    )
+  }
+
+  a.listen(a.qs("#loadLocalFile"), "click", async (e) => {
+    var file = await a.getfiles(false, false)
+    try {
+      URL.revokeObjectURL(frame.url)
+    } catch (e) {}
+    ls.frames[activeFrame.id].url = a.qs(
+      ".frameeditor > .framebuttons > div >#url"
+    ).value = await fileToBlob(file) //"LOCAL"
+    log(file)
+    ls.frames[activeFrame.id].file = file
+    delete ls.frames[activeFrame.id].folder
+    ls.frames[activeFrame.id].title = file.name
+    updateFrameElement(activeFrame.id)
+    // updateFrame()
+  })
+  a.listen(a.qs("#loadLocalFolder"), "click", async (e) => {
+    var folder = await a.getfolder(false)
+    try {
+      URL.revokeObjectURL(frame.url)
+    } catch (e) {}
+    ls.frames[activeFrame.id].url = a.qs(
+      ".frameeditor > .framebuttons > div >#url"
+    ).value = await ffopen.folder(folder)
+    log(folder)
+    ls.frames[activeFrame.id].folder = folder
+    delete ls.frames[activeFrame.id].file
+    ls.frames[activeFrame.id].title = folder.name
+    updateFrameElement(activeFrame.id)
+    // updateFrame()
+  })
+  a.listen(inp.close, "click", (e) => {
+    a.qs(".framebuttons").classList.add("hide")
+    activeFrame = null
+  })
+
+  function startDraggables() {
+    return [
+      a.listen(a.qsa(".draggable"), {
+        mousedown(e) {
+          if (!e.target.classList.contains("draggable")) return
+          e.preventDefault()
+          a.qs("#dragarea").classList.remove("hide")
+          var rect = a.rect(e.target)
+          e.target.clickpos = {
+            x: e.clientX - rect.x,
+            y: e.clientY - rect.y,
+          }
+          log(e.target.clickpos)
+          e.target.classList.add("dragging")
+        },
+      }),
+      a.listen(window, {
+        mousemove(e) {
+          var { clientX: mx, clientY: my } = e
+          // var screenWidth = a.rect("html").w
+          // var screenHeight = a.rect("html").h
+
+          // drag
+          var draggingElems = a.qsa(".dragging")
+          for (var elem of draggingElems) {
+            clampElemToRealScreen(
+              elem,
+              mx - elem.clickpos.x,
+              my - elem.clickpos.y
+            )
+          }
+          if (draggingElems.length) {
+            var rect = a.rect(".floatingui")
+            ls.frameCreatorPos = {
+              x: rect.x,
+              y: rect.y,
+            }
+          }
+          // resize
+          var lastActiveFrame = activeFrame
+          var screenWidth = a.rect("html").w
+          var screenHeight = a.rect("html").h
+          for (var elem of a.qsa(".resizing")) {
+            activeFrame = ls.frames[elem.frameId]
+            var id = elem.frameId
+            loadFrameDataToInputs()
+            if (key.alt) {
+              inp.x.value = a.step(
+                a.clamp(
+                  elem.preResize.x + (e.clientX - elem.clickStart.x),
+                  0,
+                  screenWidth - activeFrame.w
+                ),
+                10
+              )
+              inp.y.value = a.step(
+                a.clamp(
+                  elem.preResize.y + (e.clientY - elem.clickStart.y),
+                  0,
+                  screenHeight - activeFrame.h
+                ),
+                10
+              )
+            } else {
+              switch (elem.resizeDir.x) {
+                case -1:
+                  inp.x.value = a.step(
+                    a.clamp(
+                      elem.preResize.x +
+                        (e.clientX - elem.clickStart.x),
+                      0,
+                      screenWidth - activeFrame.w
+                    ),
+                    10
+                  )
+                  inp.w.value = a.step(
+                    a.clamp(
+                      elem.preResize.w -
+                        (e.clientX - elem.clickStart.x),
+                      0,
+                      screenWidth - Number(inp.x.value)
+                    ),
+                    10
+                  )
+                  break
+                case 1:
+                  inp.w.value = a.step(
+                    a.clamp(
+                      elem.preResize.w +
+                        (e.clientX - elem.clickStart.x),
+                      0,
+                      screenWidth - Number(inp.x.value)
+                    ),
+                    10
+                  )
+                  break
+              }
+              switch (elem.resizeDir.y) {
+                case -1:
+                  inp.y.value = a.step(
+                    a.clamp(
+                      elem.preResize.y +
+                        (e.clientY - elem.clickStart.y),
+                      0,
+                      screenHeight - activeFrame.h
+                    ),
+                    10
+                  )
+                  inp.h.value = a.step(
+                    a.clamp(
+                      elem.preResize.h -
+                        (e.clientY - elem.clickStart.y),
+                      0,
+                      screenHeight - Number(inp.y.value)
+                    ),
+                    10
+                  )
+                  break
+                case 1:
+                  inp.h.value = a.step(
+                    a.clamp(
+                      elem.preResize.h +
+                        (e.clientY - elem.clickStart.y),
+                      0,
+                      screenHeight - Number(inp.y.value)
+                    ),
+                    10
+                  )
+                  break
+              }
+            }
+            loadFrameDataFromInputs()
+          }
+          if (lastActiveFrame) {
+            activeFrame = lastActiveFrame
+            loadFrameDataToInputs()
+          }
+        },
+        mouseup(e) {
+          for (var elem of a.qsa(".dragging")) {
+            elem.classList.remove("dragging")
+          }
+          for (var elem of a.qsa(".resizing")) {
+            elem.classList.remove("resizing")
+          }
+          a.qs("#dragarea").classList.add("hide")
+        },
+      }),
+    ].flat()
+  }
+  async function fileToBlob(file) {
+    var f = await file.getFile()
+    var url = URL.createObjectURL(f)
+    return url
+  }
+
+  async function loadFrameDataFromInputs() {
+    activeFrame.x = Number(inp.x.value)
+    activeFrame.y = Number(inp.y.value)
+    activeFrame.w = Number(inp.w.value)
+    activeFrame.h = Number(inp.h.value)
+    activeFrame.url = inp.url.value
+    ls.frames[activeFrame.id] = activeFrame
+    updateFrameElement(activeFrame.id)
+  }
+  async function updateFrameElement(frameId) {
+    var frame = ls.frames[frameId]
+    frame.elem.style.left = frame.x + "px"
+    frame.elem.style.top = frame.y + "px"
+    frame.elem.style.width = frame.w + "px"
+    frame.elem.style.height = frame.h + "px"
+    if (frame.elem.src != frame.url) {
+      if (frame.url.startsWith("blob:")) {
+        if (frame.file || frame.folder) {
+          try {
+            try {
+              URL.revokeObjectURL(frame.url)
+            } catch (e) {}
+            frame.url = await (frame.file
+              ? fileToBlob(frame.file)
+              : ffopen.folder(frame.folder))
+          } catch (e) {
+            await waitForClick()
+            await verifyPermission(frame.file || frame.folder)
+            try {
+              URL.revokeObjectURL(frame.url)
+            } catch (e) {}
+            frame.url = await (frame.file
+              ? fileToBlob(frame.file)
+              : ffopen.folder(frame.folder))
+          }
+        }
+      }
+      frame.elem.src = frame.url
+    }
+  }
+  function loadFrameDataToInputs() {
+    inp.x.value = activeFrame.x
+    inp.y.value = activeFrame.y
+    inp.w.value = activeFrame.w
+    inp.h.value = activeFrame.h
+    inp.url.value = activeFrame.url
+  }
+  async function verifyPermission(fileHandle, write) {
+    const options = {}
+    if (write) {
+      options.mode = "readwrite"
+    }
+    debugger
+    if (
+      (await fileHandle.queryPermission(options)) === "granted" ||
+      (await fileHandle.requestPermission(options)) === "granted"
+    ) {
+      return true
+    }
+    return false
+  }
+  a.listen(
+    [inp.x, inp.y, inp.w, inp.h, inp.url],
+    "input",
+    loadFrameDataFromInputs
+  )
+  function showedit(frame = activeFrame) {
+    activeFrame = frame
+    loadFrameDataToInputs()
+    a.qs(".framebuttons").classList.remove("hide")
+  }
+  function createFrameElement(frameId) {
+    var frameData = ls.frames[frameId]
+    frameData.elem?.remove?.()
+    frameData.elem = a.createelem(document.body, "iframe", {
+      class: "frame",
+      src: "",
+      frameId,
+    })
+  }
+  function newframe() {
+    var frame = {
+      x: 0,
+      y: 0,
+      w: 200,
+      h: 200,
+      url: "",
+      title: "UNNAMED",
+      id: ls.frames.length,
+    }
+    ls.frames[frame.id] = frame
+    createFrameElement(frame.id)
+    return frame
+  }
+  function waitForClick() {
+    return new Promise((resolve) => {
+      window.onclick = resolve
+    })
+  }
+</script>
