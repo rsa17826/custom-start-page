@@ -66,6 +66,9 @@
         <button id="loadLocalFolder">load local folder</button>
       </div>
       <div class="flex-row">
+        <button id="copySaveSlot">rename save slot</button>
+      </div>
+      <div class="flex-row">
         <button class="half-w" id="save">save</button>
         <button class="half-w" id="deleteframe">delete frame</button>
         <button class="half-w" id="close">close</button>
@@ -129,27 +132,33 @@
   onpopstate = () => {
     loadFrameData()
   }
-  function loadFrameData() {
-    function deepCopy(obj) {
-      if (
-        obj === null ||
-        typeof obj !== "object" ||
-        obj instanceof FileSystemHandle
-      ) {
-        return obj
-      }
-      if (Array.isArray(obj)) {
-        return obj.map((item) => deepCopy(item))
-      }
-
-      const copy = {}
-      for (const key in obj) {
-        if (obj.hasOwnProperty(key)) {
-          copy[key] = deepCopy(obj[key])
-        }
-      }
-      return copy
+  function deepCopy(obj) {
+    if (
+      obj === null ||
+      typeof obj !== "object" ||
+      obj instanceof FileSystemHandle
+    ) {
+      return obj
     }
+    if (Array.isArray(obj)) {
+      return obj.map((item) => deepCopy(item))
+    }
+
+    const copy = {}
+    for (const key in obj) {
+      if (obj.hasOwnProperty(key)) {
+        copy[key] = deepCopy(obj[key])
+      }
+    }
+    return copy
+  }
+  function exportBackup() {
+    a.download(
+      JSON.stringify(idbls.saveData),
+      "custom start page backup.json"
+    )
+  }
+  function loadFrameData() {
     idbls.saveData ??= {}
     idbls.saveData[location.hash ?? (location.hash = "default")] ??=
       {}
@@ -179,7 +188,28 @@
     window.idbls = idbls
     loadFrameData()
   })()
-
+  a.listen(a.qs("#copySaveSlot"), "click", () => {
+    var newname = prompt(
+      "new name: ",
+      location.hash.replace(/^#/, "")
+    )
+    if (!newname) return
+    newname = newname.replace(/[^a-z0-9]/gi, "")
+    if (newname == "") return
+    if (
+      !idbls.saveData[newname] ||
+      confirm(
+        'are you sure you want to overite the save for "' +
+          newname +
+          '"?'
+      )
+    ) {
+      idbls.saveData["#" + newname.replace(/^#/, "")] = deepCopy(
+        idbls.saveData[location.hash]
+      )
+      location.hash = "#" + newname.replace(/^#/, "")
+    }
+  })
   function clampElemToRealScreen(elem, x, y) {
     var screenWidth = screen.width
     var screenHeight = screen.height
@@ -228,12 +258,10 @@
       a.listen(a.qsa(".frame"), {
         click(e) {
           activeFrame = ls.frames[e.target.frameId]
-          log(e.target.frameId)
           showedit(activeFrame)
         },
         mousedown(e) {
           activeFrame = ls.frames[e.target.frameId]
-          log(e.target.frameId)
           showedit(activeFrame)
           var elem = activeFrame.elem
           elem.classList.add("resizing")
@@ -274,7 +302,6 @@
     delete ls.frames[activeFrame.id].folder
     ls.frames[activeFrame.id].title = file.name
     updateFrameElement(activeFrame.id)
-    // updateFrame()
   })
   a.listen(a.qs("#loadLocalFolder"), "click", async (e) => {
     var folder = await a.getfolder(false)
@@ -289,7 +316,6 @@
     delete ls.frames[activeFrame.id].file
     ls.frames[activeFrame.id].title = folder.name
     updateFrameElement(activeFrame.id)
-    // updateFrame()
   })
   a.listen(inp.close, "click", (e) => {
     a.qs(".framebuttons").classList.add("hide")
@@ -315,9 +341,6 @@
       a.listen(window, {
         mousemove(e) {
           var { clientX: mx, clientY: my } = e
-          // var screenWidth = a.rect("html").w
-          // var screenHeight = a.rect("html").h
-
           // drag
           var draggingElems = a.qsa(".dragging")
           for (var elem of draggingElems) {
