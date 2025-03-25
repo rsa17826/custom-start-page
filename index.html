@@ -121,41 +121,45 @@
     url: a.qs(".frameeditor > .framebuttons > div >#url"),
   }
   function saveData() {
-    idbls.saveData = ls
+    idbls.saveData[location.hash] = ls
   }
   function clearData() {
     delete idbls.saveData
   }
-  ;(async () => {
-    const idbls = await loadlib("indexeddb ls")("framer")
-    window.idbls = idbls
-
+  onpopstate = () => {
+    loadFrameData()
+  }
+  function loadFrameData() {
     function deepCopy(obj) {
-      if (obj === null || typeof obj !== "object") {
-        return obj // Return the value if obj is not an object
-      }
-      if (obj instanceof FileSystemHandle) {
-        return obj // Return the handle itself
+      if (
+        obj === null ||
+        typeof obj !== "object" ||
+        obj instanceof FileSystemHandle
+      ) {
+        return obj
       }
       if (Array.isArray(obj)) {
-        return obj.map((item) => deepCopy(item)) // Handle arrays
+        return obj.map((item) => deepCopy(item))
       }
 
       const copy = {}
       for (const key in obj) {
         if (obj.hasOwnProperty(key)) {
-          copy[key] = deepCopy(obj[key]) // Recursively copy properties
+          copy[key] = deepCopy(obj[key])
         }
       }
       return copy
     }
     idbls.saveData ??= {}
-    window.ls = deepCopy(idbls.saveData)
+    idbls.saveData[location.hash ?? (location.hash = "default")] ??=
+      {}
+    window.ls = deepCopy(idbls.saveData[location.hash])
     ls.frames ??= []
     ls.frameCreatorPos ??= {
       x: 35,
       y: 5,
     }
+    a.qsa(".frame").forEach((e) => e.remove())
     clampElemToRealScreen(
       a.qs(".floatingui"),
       ls.frameCreatorPos.x,
@@ -169,6 +173,11 @@
       updateFrameElement(id)
     }
     updateFrameClickListeners()
+  }
+  ;(async () => {
+    const idbls = await loadlib("indexeddb ls")("framer")
+    window.idbls = idbls
+    loadFrameData()
   })()
 
   function clampElemToRealScreen(elem, x, y) {
