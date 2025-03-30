@@ -90,7 +90,10 @@
         <button title="delete the selected frame" id="deleteframe">
           delete frame
         </button>
-        <button title="deselect the active frame and hide the frame edit buttons" id="close">
+        <button
+          title="deselect the active frame and hide the frame edit buttons"
+          id="close"
+        >
           close
         </button>
       </div>
@@ -210,7 +213,7 @@
   }
   function loadFrameData() {
     idbls.saveData ??= {}
-    idbls.saveData[location.hash ?? (location.hash = "default")] ??=
+    idbls.saveData[location.hash || (location.hash = "default")] ??=
       {}
     window.ls = deepCopy(idbls.saveData[location.hash])
     ls.frames ??= []
@@ -259,6 +262,12 @@
       )
       location.hash = "#" + newname.replace(/^#/, "")
     }
+  })
+  a.listen(a.qs("#deleteSaveSlot"), "click", async () => {
+    if (!confirm(`delete save "${location.hash}"?`)) return
+    delete idbls.saveData[location.hash]
+    await idbls.saveall()
+    location.hash = ""
   })
   function clampElemToRealScreen(elem, x, y) {
     var screenWidth = screen.width
