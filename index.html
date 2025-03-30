@@ -87,6 +87,14 @@
         </button>
       </div>
       <div class="flex-row">
+        <button
+          title="opens the frames url in a new tab"
+          id="openFrameInNewTab"
+        >
+          open in new tab
+        </button>
+      </div>
+      <div class="flex-row">
         <button title="delete the selected frame" id="deleteframe">
           delete frame
         </button>
@@ -268,6 +276,9 @@
     delete idbls.saveData[location.hash]
     await idbls.saveall()
     location.hash = ""
+  })
+  a.listen(a.qs("#openFrameInNewTab"), "click", async () => {
+    open(activeFrame.url)
   })
   function clampElemToRealScreen(elem, x, y) {
     var screenWidth = screen.width
