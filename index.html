@@ -11,13 +11,19 @@
 
 <div class="floatingui draggable hide">
   <div class="frameeditor">
-    <div class="buttonsbar flex-row">
-      <button id="newframe">add new frame</button>
+    <div class="flex-row">
+      <button
+        title="create a new frame in the top left"
+        id="newframe"
+      >
+        add new frame
+      </button>
     </div>
     <div class="framebuttons hide">
       <div class="flex-row">
         <span>x: </span
         ><input
+          title="x position of selected frame"
           class="half-w"
           step="10"
           min="0"
@@ -28,6 +34,7 @@
         <span>y: </span
         ><input
           class="half-w"
+          title="y position of selected frame"
           step="10"
           min="0"
           type="number"
@@ -39,6 +46,7 @@
         <span>w: </span
         ><input
           class="half-w"
+          title="width of selected frame"
           type="number"
           step="10"
           min="0"
@@ -48,6 +56,7 @@
         <span>h: </span
         ><input
           class="half-w"
+          title="height of selected frame"
           type="number"
           step="10"
           min="0"
@@ -57,22 +66,63 @@
       </div>
       <div class="flex-row">
         <span>url: </span
-        ><input id="url" placeholder="url" class="half-w" />
+        ><input
+          class="half-w"
+          title="url to load in the frame"
+          id="url"
+          placeholder="url"
+        />
       </div>
       <div class="flex-row">
-        <button id="loadLocalFile">load local file</button>
+        <button title="loads a file in the frame" id="loadLocalFile">
+          load local file
+        </button>
       </div>
       <div class="flex-row">
-        <button id="loadLocalFolder">load local folder</button>
+        <button
+          title="loads a folder in the frame"
+          id="loadLocalFolder"
+        >
+          load local folder
+        </button>
       </div>
       <div class="flex-row">
-        <button id="copySaveSlot">rename save slot</button>
+        <button title="delete the selected frame" id="deleteframe">
+          delete frame
+        </button>
+        <button title="deselect the active frame and hide the frame edit buttons" id="close">
+          close
+        </button>
       </div>
-      <div class="flex-row">
-        <button class="half-w" id="save">save</button>
-        <button class="half-w" id="deleteframe">delete frame</button>
-        <button class="half-w" id="close">close</button>
-      </div>
+    </div>
+    <div class="flex-row">
+      <button
+        title="copy the frames to a new save slot"
+        id="copySaveSlot"
+      >
+        copy save slot
+      </button>
+      <button
+        title="delete the current save slot"
+        id="deleteSaveSlot"
+      >
+        delete save slot
+      </button>
+    </div>
+    <div class="flex-row">
+      <a
+        style="
+          display: flex;
+          justify-content: center;
+          align-items: center;
+        "
+        title="install this extension to allow this website to use frames of any site EG: youtube.com"
+        href="https://github.com/rsa17826/frames-anywhere/archive/refs/heads/main.zip"
+        >allow all frames</a
+      >
+    </div>
+    <div class="flex-row">
+      <button title="save all changes" id="save">save</button>
     </div>
   </div>
 </div>
@@ -243,6 +293,7 @@
   a.listen(a.qs("#deleteframe"), "click", (e) => {
     activeFrame.elem.remove()
     ls.frames.splice(activeFrame.id, 1)
+    a.qs(".framebuttons").classList.add("hide")
     activeFrame = null
     for (var id in ls.frames) {
       ls.frames[id].id = id
